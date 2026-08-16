@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bid War Multiplayer</title>
-    <script src="/socket.io/socket.io.js"></script> <!-- Connects to Socket.io -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script><!-- Connects to Socket.io -->
     <style>
         /* Exact same styling as before */
         :root { --bg-color: #121212; --text-color: #ffffff; --primary: #4F46E5; --primary-hover: #4338CA; --accent: #10B981; --danger: #EF4444; --panel-bg: #1F2937; }
@@ -102,7 +102,7 @@
        NOTE: If deploying to CrazyGames and Render, replace the empty io() below with your 
        Render backend URL, like this: const socket = io('https://your-server.onrender.com');
     */
-    const socket = io('[https://bid-wars-cd4l.onrender.com](https://bid-wars-cd4l.onrender.com)'); 
+    const socket = io('https://bid-wars-cd4l.onrender.com');
 
     // Local Game State
     let myRoomCode = "";
