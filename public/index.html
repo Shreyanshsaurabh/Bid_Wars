@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bid War Multiplayer</title>
+    <script src="/socket.io/socket.io.js"></script> <!-- Connects to Socket.io -->
+    <style>
+        /* Exact same styling as before */
+        :root { --bg-color: #121212; --text-color: #ffffff; --primary: #4F46E5; --primary-hover: #4338CA; --accent: #10B981; --danger: #EF4444; --panel-bg: #1F2937; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        #game-container { background-color: var(--panel-bg); width: 100%; max-width: 500px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center; padding: 2rem; box-sizing: border-box; }
+        .screen { display: none; } .screen.active { display: block; }
+        .stat-box { background-color: rgba(255,255,255,0.1); padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+        .highlight { color: var(--accent); font-weight: bold; font-size: 1.2rem; }
+        .warning { color: var(--danger); font-weight: bold; }
+        input { width: 80%; padding: 10px; font-size: 1.5rem; text-align: center; border: 2px solid var(--primary); background-color: transparent; color: white; border-radius: 8px; margin: 1rem 0; }
+        button { background-color: var(--primary); color: white; border: none; padding: 12px 24px; font-size: 1.1rem; border-radius: 8px; cursor: pointer; transition: background-color 0.2s; width: 100%; font-weight: bold; margin-bottom: 10px; }
+        button:hover { background-color: var(--primary-hover); }
+        button:disabled { background-color: #555; cursor: not-allowed; }
+        #error-msg { color: var(--danger); font-size: 0.9rem; min-height: 1.2rem; margin-bottom: 1rem; }
+        .scoreboard { display: flex; justify-content: space-around; background-color: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; margin-bottom: 1.5rem; }
+        .history-table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+        .history-table th { border-bottom: 2px solid #666; padding: 8px; color: var(--accent); }
+        .history-table td { border-bottom: 1px solid #444; padding: 8px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    
+    <!-- MAIN MENU -->
+    <div id="screen-menu" class="screen active">
+        <h1>Bid War Online</h1>
+        <button onclick="createRoom()">Create Room (Host)</button>
+        <p>OR</p>
+        <input type="text" id="room-input" placeholder="Enter 4-Digit Code" style="width: 50%; font-size: 1.2rem;">
+        <button onclick="joinRoom()">Join Room</button>
+        <div id="menu-error" class="warning" style="margin-top:10px;"></div>
+    </div>
+
+    <!-- LOBBY SCREEN -->
+    <div id="screen-lobby" class="screen">
+        <h2>Waiting for opponent...</h2>
+        <p>Your Room Code is:</p>
+        <h1 id="lobby-code" class="highlight" style="font-size: 3rem; letter-spacing: 5px;"></h1>
+    </div>
+
+    <!-- PLAY TURN SCREEN -->
+    <div id="screen-play" class="screen">
+        <div class="scoreboard">
+            <div>P1 Wins: <br><span id="score-p1" class="highlight">0</span></div>
+            <div>Round: <br><span id="score-round" class="highlight">1/10</span></div>
+            <div>P2 Wins: <br><span id="score-p2" class="highlight">0</span></div>
+        </div>
+
+        <h2 id="player-identity" style="margin-bottom: 5px;"></h2>
+        <h3 id="turn-status" style="color: #aaa; margin-top: 0;"></h3>
+        
+        <div class="stat-box">
+            <p>Your Remaining Points: <span id="my-points" class="highlight">100</span></p>
+            <p>Opponent's Point Group: <span id="opponent-group" class="warning">90-100</span></p>
+            <p id="opponent-bid-info" style="display: none;">Opponent bid a: <span id="opponent-digit" class="highlight"></span></p>
+        </div>
+
+        <div id="play-area">
+            <p>Enter your bid for this round:</p>
+            <input type="number" id="bid-input" min="0" max="100" placeholder="0" autocomplete="off">
+            <div id="error-msg"></div>
+            <button id="submit-btn" onclick="submitBid()">Submit Bid</button>
+        </div>
+    </div>
+
+    <!-- ROUND RESULTS SCREEN -->
+    <div id="screen-result" class="screen">
+        <h2>Round <span id="res-round"></span> Results</h2>
+        <div class="stat-box">
+            <p>Bids are hidden!</p>
+            <h3 id="res-winner" style="margin: 1.5rem 0;"></h3>
+        </div>
+        <button onclick="readyNextRound()" id="next-round-btn">Ready for Next Round</button>
+    </div>
+
+    <!-- GAME OVER SCREEN -->
+    <div id="screen-gameover" class="screen">
+        <h1>Game Over!</h1>
+        <h2 id="final-winner" class="highlight"></h2>
+        <div class="stat-box" style="margin-bottom: 0.5rem;">
+            <p style="margin: 0;">P1 Wins: <span id="final-p1-wins" class="highlight"></span> | P2 Wins: <span id="final-p2-wins" class="highlight"></span></p>
+        </div>
+        <div class="stat-box" style="max-height: 220px; overflow-y: auto; text-align: left; padding-top: 0;">
+            <h3 style="text-align: center; margin-top: 10px;">Bid History</h3>
+            <div id="bid-history-container"></div>
+        </div>
+        <button onclick="location.reload()">Return to Menu</button>
+    </div>
+
+</div>
+
+<script>
+    /* 
+       NOTE: If deploying to CrazyGames and Render, replace the empty io() below with your 
+       Render backend URL, like this: const socket = io('https://your-server.onrender.com');
+    */
+    const socket = io(); 
+
+    // Local Game State
+    let myRoomCode = "";
+    let myPlayerNum = 1; // 1 or 2
+    let p1Points = 100, p2Points = 100;
+    let p1Wins = 0, p2Wins = 0;
+    let currentRound = 1;
+    let maxRounds = 10;
+    let bidHistory = [];
+
+    // Helper Functions
+    function switchScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(screenId).classList.add('active');
+    }
+
+    function getPointGroup(points) {
+        if (points >= 90) return "90 - 100";
+        if (points >= 69) return "69 - 89";
+        if (points >= 40) return "40 - 68";
+        if (points >= 20) return "20 - 39";
+        return "0 - 19";
+    }
+
+    function updatePlayScreen(currentTurn) {
+        document.getElementById('player-identity').innerText = "You are Player " + myPlayerNum;
+        document.getElementById('score-p1').innerText = p1Wins;
+        document.getElementById('score-p2').innerText = p2Wins;
+        document.getElementById('score-round').innerText = currentRound + "/" + maxRounds;
+        
+        const myPoints = myPlayerNum === 1 ? p1Points : p2Points;
+        const oppPoints = myPlayerNum === 1 ? p2Points : p1Points;
+        
+        document.getElementById('my-points').innerText = myPoints;
+        document.getElementById('opponent-group').innerText = getPointGroup(oppPoints);
+
+        const playArea = document.getElementById('play-area');
+        const turnStatus = document.getElementById('turn-status');
+
+        if (currentTurn === myPlayerNum) {
+            turnStatus.innerText = "It is your turn to bid.";
+            playArea.style.display = "block";
+            document.getElementById('bid-input').value = "";
+            document.getElementById('bid-input').focus();
+        } else {
+            turnStatus.innerText = "Waiting for opponent to bid...";
+            playArea.style.display = "none";
+        }
+    }
+
+    // Lobby Actions
+    function createRoom() {
+        socket.emit('createRoom');
+        myPlayerNum = 1;
+    }
+
+    function joinRoom() {
+        const code = document.getElementById('room-input').value;
+        if(code) {
+            socket.emit('joinRoom', code);
+            myRoomCode = code;
+            myPlayerNum = 2;
+        }
+    }
+
+    // Socket Listeners
+    socket.on('roomCreated', (code) => {
+        myRoomCode = code;
+        document.getElementById('lobby-code').innerText = code;
+        switchScreen('screen-lobby');
+    });
+
+    socket.on('errorMsg', (msg) => {
+        document.getElementById('menu-error').innerText = msg;
+    });
+
+    socket.on('opponentLeft', () => {
+        alert("Your opponent disconnected!");
+        location.reload();
+    });
+
+    // Game Core Logic
+    socket.on('gameStarted', (data) => {
+        switchScreen('screen-play');
+        updatePlayScreen(data.firstBidder);
+    });
+
+    function submitBid() {
+        const inputVal = parseInt(document.getElementById('bid-input').value);
+        const myPoints = myPlayerNum === 1 ? p1Points : p2Points;
+
+        if (isNaN(inputVal) || inputVal < 0 || inputVal > myPoints) {
+            document.getElementById('error-msg').innerText = "Invalid bid! Max: " + myPoints;
+            return;
+        }
+
+        document.getElementById('error-msg').innerText = "";
+        socket.emit('submitBid', { roomCode: myRoomCode, bid: inputVal });
+        
+        // Hide input locally while waiting
+        document.getElementById('play-area').style.display = "none";
+        document.getElementById('turn-status').innerText = "Bid submitted. Waiting for opponent...";
+    }
+
+    // Triggered when Player 1 finishes their turn, and it's Player 2's turn
+    socket.on('firstBidPlaced', (data) => {
+        document.getElementById('opponent-bid-info').style.display = "block";
+        document.getElementById('opponent-digit').innerText = data.digitType;
+        updatePlayScreen(data.nextTurn);
+    });
+
+    socket.on('roundResolved', (data) => {
+        // Hide hint for next round
+        document.getElementById('opponent-bid-info').style.display = "none";
+        
+        p1Points -= data.p1Bid;
+        p2Points -= data.p2Bid;
+        
+        document.getElementById('res-round').innerText = currentRound;
+        const winnerText = document.getElementById('res-winner');
+        let roundWinner = "";
+
+        if (data.p1Bid > data.p2Bid) {
+            p1Wins++;
+            roundWinner = "Player 1";
+            winnerText.innerText = "Player 1 wins the round!";
+            winnerText.style.color = "var(--accent)";
+        } else if (data.p2Bid > data.p1Bid) {
+            p2Wins++;
+            roundWinner = "Player 2";
+            winnerText.innerText = "Player 2 wins the round!";
+            winnerText.style.color = "var(--accent)";
+        } else {
+            roundWinner = "Tie";
+            winnerText.innerText = "It's a tie!";
+            winnerText.style.color = "var(--text-color)";
+        }
+
+        bidHistory.push({ round: currentRound, p1: data.p1Bid, p2: data.p2Bid, winner: roundWinner });
+
+        if (currentRound >= maxRounds) {
+            document.getElementById('next-round-btn').innerText = "Finish Game & See Bids";
+        }
+
+        switchScreen('screen-result');
+        document.getElementById('next-round-btn').disabled = false;
+        document.getElementById('next-round-btn').innerText = "Ready for Next Round";
+    });
+
+    function readyNextRound() {
+        if (currentRound >= maxRounds) {
+            showGameOver();
+        } else {
+            document.getElementById('next-round-btn').disabled = true;
+            document.getElementById('next-round-btn').innerText = "Waiting for opponent...";
+            socket.emit('nextRoundReady', myRoomCode);
+        }
+    }
+
+    socket.on('startNextRound', (data) => {
+        currentRound = data.round;
+        switchScreen('screen-play');
+        updatePlayScreen(data.firstBidder);
+    });
+
+    function showGameOver() {
+        document.getElementById('final-p1-wins').innerText = p1Wins;
+        document.getElementById('final-p2-wins').innerText = p2Wins;
+
+        const finalWinner = document.getElementById('final-winner');
+        if (p1Wins > p2Wins) {
+            finalWinner.innerText = "Player 1 Wins!";
+        } else if (p2Wins > p1Wins) {
+            finalWinner.innerText = "Player 2 Wins!";
+        } else {
+            if (p1Points > p2Points) finalWinner.innerText = "Tie Breaker! P1 wins (more points left).";
+            else if (p2Points > p1Points) finalWinner.innerText = "Tie Breaker! P2 wins (more points left).";
+            else finalWinner.innerText = "Complete Draw!";
+        }
+
+        let historyHTML = `<table class="history-table"><tr><th>Rnd</th><th>P1 Bid</th><th>P2 Bid</th><th>Winner</th></tr>`;
+        bidHistory.forEach(h => {
+            historyHTML += `<tr><td>${h.round}</td><td>${h.p1}</td><td>${h.p2}</td>
+                <td style="color: ${h.winner === 'Tie' ? '#ccc' : 'var(--accent)'}">${h.winner}</td></tr>`;
+        });
+        historyHTML += `</table>`;
+        document.getElementById('bid-history-container').innerHTML = historyHTML;
+
+        switchScreen('screen-gameover');
+    }
+</script>
+
+</body>
+</html>
