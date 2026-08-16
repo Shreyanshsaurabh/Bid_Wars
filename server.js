@@ -51,34 +51,37 @@ io.on('connection', (socket) => {
     });
 
     // 3. Handle Bidding turns
+    // 3. Handle Bidding turns
     socket.on('submitBid', (data) => {
         const { roomCode, bid } = data;
         const room = rooms[roomCode];
         if (!room) return;
 
-        // Record the bid
+        // Record the bid based on who sent it
         if (socket.id === room.p1) room.p1Bid = bid;
         if (socket.id === room.p2) room.p2Bid = bid;
 
-        // If this is the FIRST bidder of the round
-        if ((socket.id === room.p1 && room.currentTurn === 1) || 
-            (socket.id === room.p2 && room.currentTurn === 2)) {
+        // Check if BOTH bids have been collected
+        if (room.p1Bid !== null && room.p2Bid !== null) {
             
-            room.currentTurn = room.currentTurn === 1 ? 2 : 1; // Switch turn to Player 2
-            const digitType = getDigitType(bid);
-            
-            // Tell the second player it's their turn, and give them the hint
-            io.to(roomCode).emit('firstBidPlaced', { 
-                nextTurn: room.currentTurn, 
-                digitType: digitType 
-            });
-        } 
-        // If this is the SECOND bidder, the round is complete
-        else if (room.p1Bid !== null && room.p2Bid !== null) {
+            // Both players have bid, send the results!
             io.to(roomCode).emit('roundResolved', {
                 p1Bid: room.p1Bid,
                 p2Bid: room.p2Bid
             });
+            
+        } else {
+            
+            // Only ONE player has bid so far. Switch the turn.
+            room.currentTurn = room.currentTurn === 1 ? 2 : 1; 
+            const digitType = getDigitType(bid);
+            
+            // Tell the second player it's their turn
+            io.to(roomCode).emit('firstBidPlaced', { 
+                nextTurn: room.currentTurn, 
+                digitType: digitType 
+            });
+            
         }
     });
 
