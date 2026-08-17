@@ -260,14 +260,95 @@
         }
 
         .icon { width: 18px; height: 18px; flex-shrink: 0; }
+
+        /* RULES SCREEN */
+        .rules-list {
+            list-style: none;
+            margin: 0 0 1.5rem;
+            padding: 0;
+            text-align: left;
+        }
+        .rules-list li {
+            display: flex;
+            gap: 12px;
+            padding: 0.7rem 0;
+            border-bottom: 1px dashed var(--panel-edge);
+            font-size: 0.9rem;
+            line-height: 1.4;
+            color: var(--text);
+        }
+        .rules-list li:last-child { border-bottom: none; }
+        .rules-list .num {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.3rem;
+            letter-spacing: 0.03em;
+            color: var(--brass-light);
+            min-width: 26px;
+            flex-shrink: 0;
+        }
+        .link-btn {
+            background: none;
+            box-shadow: none;
+            color: var(--muted);
+            text-decoration: underline;
+            text-decoration-color: var(--brass-dark);
+            text-underline-offset: 3px;
+            text-transform: none;
+            letter-spacing: normal;
+            font-weight: 500;
+            padding: 6px;
+            width: auto;
+            margin: 0 auto;
+        }
+        .link-btn:hover { color: var(--brass-light); filter: none; }
+
+        /* NAME ENTRY SCREEN */
+        .paddle-badge {
+            width: 64px; height: 64px;
+            margin: 0 auto 1rem;
+            border-radius: 50%;
+            background: linear-gradient(180deg, var(--brass-light), var(--brass) 60%, var(--brass-dark));
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 3px 0 var(--brass-dark);
+        }
+        .paddle-badge svg { width: 30px; height: 30px; color: #241C05; }
+        #name-error { color: var(--danger); font-size: 0.85rem; min-height: 1.2rem; margin-bottom: 0.25rem; font-family: 'IBM Plex Mono', monospace; }
+        .field-note { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; letter-spacing: 0.06em; color: var(--muted); margin: -0.5rem 0 1rem; }
     </style>
 </head>
 <body>
 
 <div id="game-container">
 
+    <!-- RULES SCREEN -->
+    <div id="screen-rules" class="screen active">
+        <h1 class="brand" style="font-size: 2.1rem;">THE RULES</h1>
+        <p class="tagline">Read Before You Raise Your Paddle</p>
+        <ol class="rules-list">
+            <li><span class="num">1</span><span>Both bidders start each match with 100 points.</span></li>
+            <li><span class="num">2</span><span>Every round, you and your opponent secretly submit a bid between 0 and whatever points you have left.</span></li>
+            <li><span class="num">3</span><span>Highest bid wins the round — but both bids are spent either way, win or lose.</span></li>
+            <li><span class="num">4</span><span>A tied bid means nobody wins that round.</span></li>
+            <li><span class="num">5</span><span>The match runs 10 rounds. Whoever's won the most rounds when it ends takes the match.</span></li>
+            <li><span class="num">6</span><span>If round wins are tied after round 10, whoever has more points left standing wins.</span></li>
+        </ol>
+        <button id="rules-continue-btn" onclick="continueFromRules()">I'm Ready — Enter Your Name</button>
+    </div>
+
+    <!-- NAME ENTRY SCREEN -->
+    <div id="screen-name" class="screen">
+        <div class="paddle-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4l6 6-8.5 8.5a2.1 2.1 0 0 1-3 0 2.1 2.1 0 0 1 0-3L17 6"/><path d="M12.5 5.5l6 6"/><path d="M3 21l3-1 11-11-2-2L4 18l-1 3z"/></svg>
+        </div>
+        <h2>Who's Bidding?</h2>
+        <input type="text" id="player-name-input" placeholder="e.g. Ace" maxlength="16" style="width: 70%;">
+        <p class="field-note">Shown on your side of the table</p>
+        <div id="name-error"></div>
+        <button onclick="confirmName()">Continue to Lobby</button>
+    </div>
+
     <!-- MAIN MENU -->
-    <div id="screen-menu" class="screen active">
+    <div id="screen-menu" class="screen">
         <h1 class="brand">BID WAR</h1>
         <p class="tagline">Sealed Bids · Winner Takes the Round</p>
 
@@ -282,12 +363,13 @@
             Join Room
         </button>
         <div id="menu-error" class="warning" style="margin-top:10px;"></div>
+        <button type="button" class="link-btn" onclick="openRulesFromMenu()">How to Play</button>
     </div>
 
     <!-- LOBBY SCREEN -->
     <div id="screen-lobby" class="screen">
         <h2>Waiting for Opponent…</h2>
-        <p class="tagline" style="margin-bottom: 0;">Give them your room code</p>
+        <p class="tagline" id="lobby-host-name" style="margin-bottom: 0;">Give them your room code</p>
         <div class="dial-wrap">
             <div class="dial-ring"></div>
             <div class="dial-core">
@@ -336,6 +418,7 @@
     <div id="screen-gameover" class="screen">
         <h1 class="brand" style="font-size: 2rem;">GAME OVER</h1>
         <h2 id="final-winner" class="highlight" style="font-size: 1.6rem;"></h2>
+        <p id="final-player-tag" class="tagline" style="margin-bottom: 0.75rem;"></p>
         <div class="ticket-divider"></div>
         <div class="stat-box" style="margin-bottom: 0.75rem; text-align:center;">
             <p style="margin: 0;">P1 Wins: <span id="final-p1-wins" class="highlight"></span> &nbsp;|&nbsp; P2 Wins: <span id="final-p2-wins" class="highlight"></span></p>
@@ -359,11 +442,43 @@
     // Local Game State
     let myRoomCode = "";
     let myPlayerNum = 1; // 1 or 2
+    let myPlayerName = "";
+    let rulesOpenedFromMenu = false;
     let p1Points = 100, p2Points = 100;
     let p1Wins = 0, p2Wins = 0;
     let currentRound = 1;
     let maxRounds = 10;
     let bidHistory = [];
+
+    // Rules / Name Entry Navigation
+    function continueFromRules() {
+        if (rulesOpenedFromMenu) {
+            rulesOpenedFromMenu = false;
+            document.getElementById('rules-continue-btn').innerText = "I'm Ready — Enter Your Name";
+            switchScreen('screen-menu');
+        } else {
+            switchScreen('screen-name');
+        }
+    }
+
+    function openRulesFromMenu() {
+        rulesOpenedFromMenu = true;
+        document.getElementById('rules-continue-btn').innerText = "Back to Menu";
+        switchScreen('screen-rules');
+    }
+
+    function confirmName() {
+        const nameInput = document.getElementById('player-name-input');
+        const val = nameInput.value.trim();
+        const errorEl = document.getElementById('name-error');
+        if (!val) {
+            errorEl.innerText = "Enter a name to continue.";
+            return;
+        }
+        errorEl.innerText = "";
+        myPlayerName = val.slice(0, 16);
+        switchScreen('screen-menu');
+    }
 
     // Helper Functions
     function switchScreen(screenId) {
@@ -380,7 +495,8 @@
     }
 
     function updatePlayScreen(currentTurn) {
-        document.getElementById('player-identity').innerText = "You are Player " + myPlayerNum;
+        const identityLabel = myPlayerName ? (myPlayerName + " — Player " + myPlayerNum) : ("You are Player " + myPlayerNum);
+        document.getElementById('player-identity').innerText = identityLabel;
         document.getElementById('score-p1').innerText = p1Wins;
         document.getElementById('score-p2').innerText = p2Wins;
         document.getElementById('score-round').innerText = currentRound + "/" + maxRounds;
@@ -424,6 +540,9 @@
     socket.on('roomCreated', (code) => {
         myRoomCode = code;
         document.getElementById('lobby-code').innerText = code;
+        document.getElementById('lobby-host-name').innerText = myPlayerName
+            ? ("Hosting as " + myPlayerName + " — give them your room code")
+            : "Give them your room code";
         switchScreen('screen-lobby');
     });
 
@@ -523,6 +642,9 @@
     function showGameOver() {
         document.getElementById('final-p1-wins').innerText = p1Wins;
         document.getElementById('final-p2-wins').innerText = p2Wins;
+        document.getElementById('final-player-tag').innerText = myPlayerName
+            ? ("Playing as " + myPlayerName + " (Player " + myPlayerNum + ")")
+            : ("Playing as Player " + myPlayerNum);
 
         const finalWinner = document.getElementById('final-winner');
         if (p1Wins > p2Wins) {
