@@ -3,60 +3,311 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bid War Multiplayer</title>
+    <title>Bid War — Sealed Auction</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script><!-- Connects to Socket.io -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* Exact same styling as before */
-        :root { --bg-color: #121212; --text-color: #ffffff; --primary: #4F46E5; --primary-hover: #4338CA; --accent: #10B981; --danger: #EF4444; --panel-bg: #1F2937; }
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-        #game-container { background-color: var(--panel-bg); width: 100%; max-width: 500px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center; padding: 2rem; box-sizing: border-box; }
-        .screen { display: none; } .screen.active { display: block; }
-        .stat-box { background-color: rgba(255,255,255,0.1); padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
-        .highlight { color: var(--accent); font-weight: bold; font-size: 1.2rem; }
-        .warning { color: var(--danger); font-weight: bold; }
-        input { width: 80%; padding: 10px; font-size: 1.5rem; text-align: center; border: 2px solid var(--primary); background-color: transparent; color: white; border-radius: 8px; margin: 1rem 0; }
-        button { background-color: var(--primary); color: white; border: none; padding: 12px 24px; font-size: 1.1rem; border-radius: 8px; cursor: pointer; transition: background-color 0.2s; width: 100%; font-weight: bold; margin-bottom: 10px; }
-        button:hover { background-color: var(--primary-hover); }
-        button:disabled { background-color: #555; cursor: not-allowed; }
-        #error-msg { color: var(--danger); font-size: 0.9rem; min-height: 1.2rem; margin-bottom: 1rem; }
-        .scoreboard { display: flex; justify-content: space-around; background-color: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; margin-bottom: 1.5rem; }
-        .history-table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
-        .history-table th { border-bottom: 2px solid #666; padding: 8px; color: var(--accent); }
-        .history-table td { border-bottom: 1px solid #444; padding: 8px; text-align: center; }
+        :root {
+            --bg-deep: #0A0B0D;
+            --panel: #171A1E;
+            --panel-edge: #262A30;
+            --ledger: #1C2620;
+            --brass: #C9A227;
+            --brass-light: #EACB6A;
+            --brass-dark: #8A6D18;
+            --felt: #1F4A38;
+            --felt-light: #3E9A6E;
+            --oxblood: #8C2A34;
+            --oxblood-light: #C24A54;
+            --cream: #EFE6CE;
+            --text: #ECE6D6;
+            --muted: #9CA3AC;
+            --danger: #D1453B;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'IBM Plex Sans', sans-serif;
+            background-color: var(--bg-deep);
+            background-image:
+                radial-gradient(ellipse at 50% -10%, rgba(201,162,39,0.10), transparent 55%),
+                repeating-linear-gradient(135deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 26px);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        #game-container {
+            position: relative;
+            background:
+                radial-gradient(circle 4.5px at 16px 16px, var(--brass) 45%, transparent 48%),
+                radial-gradient(circle 4.5px at calc(100% - 16px) 16px, var(--brass) 45%, transparent 48%),
+                radial-gradient(circle 4.5px at 16px calc(100% - 16px), var(--brass) 45%, transparent 48%),
+                radial-gradient(circle 4.5px at calc(100% - 16px) calc(100% - 16px), var(--brass) 45%, transparent 48%),
+                var(--panel);
+            width: 100%;
+            max-width: 460px;
+            border: 1px solid var(--panel-edge);
+            border-radius: 6px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(201,162,39,0.15);
+            text-align: center;
+            padding: 2.25rem 1.75rem 1.75rem;
+        }
+
+        .screen { display: none; }
+        .screen.active { display: block; animation: fadeIn 0.35s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+        .brand {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 2.75rem;
+            letter-spacing: 0.14em;
+            line-height: 1;
+            margin: 0 0 4px;
+            background: linear-gradient(180deg, var(--brass-light), var(--brass) 60%, var(--brass-dark));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .tagline {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.72rem;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin: 0 0 1.75rem;
+        }
+
+        h2 { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.06em; font-size: 1.5rem; margin: 0 0 0.5rem; color: var(--cream); }
+        h3 { font-weight: 500; margin: 0.25rem 0; }
+
+        .stat-box {
+            background: linear-gradient(180deg, var(--ledger), #17201B);
+            border: 1px solid rgba(63,154,110,0.25);
+            padding: 1.1rem 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            text-align: left;
+        }
+        .stat-box p { margin: 0.4rem 0; font-size: 0.95rem; }
+
+        .highlight { color: var(--felt-light); font-weight: 700; font-family: 'IBM Plex Mono', monospace; }
+        .warning { color: var(--oxblood-light); font-weight: 700; font-family: 'IBM Plex Mono', monospace; }
+
+        /* Ticket-style divider used as a visual rhythm element */
+        .ticket-divider {
+            height: 1px;
+            margin: 1.25rem 0;
+            background-image: repeating-linear-gradient(90deg, var(--panel-edge) 0 6px, transparent 6px 12px);
+        }
+
+        input[type="text"], input[type="number"] {
+            width: 78%;
+            padding: 12px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 1.4rem;
+            text-align: center;
+            border: 2px dashed var(--brass-dark);
+            background-color: rgba(0,0,0,0.25);
+            color: var(--cream);
+            border-radius: 6px;
+            margin: 1rem 0;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        input:focus {
+            outline: none;
+            border-color: var(--felt-light);
+            border-style: solid;
+            box-shadow: 0 0 0 3px rgba(62,154,110,0.2);
+        }
+        input::placeholder { color: #5b6470; }
+
+        button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: linear-gradient(180deg, var(--brass-light), var(--brass) 55%, var(--brass-dark));
+            color: #241C05;
+            border: none;
+            padding: 13px 22px;
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: filter 0.15s, transform 0.1s;
+            width: 100%;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 0 var(--brass-dark);
+        }
+        button:hover { filter: brightness(1.08); }
+        button:active { transform: translateY(1px); box-shadow: 0 1px 0 var(--brass-dark); }
+        button:disabled {
+            background: #3A3D42; color: #85898F; cursor: not-allowed; box-shadow: none;
+        }
+
+        .or-divider { color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; letter-spacing: 0.2em; margin: 0.5rem 0; }
+
+        #error-msg { color: var(--danger); font-size: 0.85rem; min-height: 1.2rem; margin-bottom: 0.5rem; font-family: 'IBM Plex Mono', monospace; }
+
+        /* LOBBY */
+        .dial-wrap {
+            position: relative;
+            width: 190px; height: 190px;
+            margin: 1.5rem auto 1.75rem;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .dial-ring {
+            position: absolute; inset: 0;
+            border-radius: 50%;
+            background: conic-gradient(var(--brass), var(--brass-dark), var(--brass) 25%, var(--panel-edge) 25% 50%, var(--brass-dark) 50% 75%, var(--brass) 75%);
+            animation: spin 5s linear infinite;
+            -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 6px));
+                    mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 6px));
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .dial-core {
+            position: relative;
+            width: 152px; height: 152px;
+            border-radius: 50%;
+            background: var(--ledger);
+            border: 1px solid rgba(201,162,39,0.35);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        #lobby-code {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 2.6rem;
+            letter-spacing: 0.28em;
+            margin: 0;
+            padding-left: 0.28em;
+            color: var(--brass-light);
+        }
+        .dial-core span.label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.65rem;
+            letter-spacing: 0.15em;
+            color: var(--muted);
+            text-transform: uppercase;
+        }
+
+        /* SCOREBOARD */
+        .scoreboard {
+            display: flex;
+            justify-content: space-between;
+            align-items: stretch;
+            background: linear-gradient(180deg, #101215, #0C0D0F);
+            border: 1px solid var(--panel-edge);
+            border-radius: 6px;
+            padding: 0.85rem 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .scoreboard > div { flex: 1; padding: 0 4px; }
+        .scoreboard > div:not(:last-child) { border-right: 1px solid var(--panel-edge); }
+        .scoreboard .label {
+            display: block;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.6rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 4px;
+        }
+        .scoreboard .highlight { font-size: 1.4rem; }
+
+        #player-identity { color: var(--brass-light); }
+        #turn-status { color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; margin-top: 0; letter-spacing: 0.03em; }
+
+        #opponent-bid-info {
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px dashed var(--panel-edge);
+        }
+
+        .history-table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; font-size: 0.85rem; font-family: 'IBM Plex Mono', monospace; }
+        .history-table th {
+            border-bottom: 2px solid var(--brass-dark);
+            padding: 7px;
+            color: var(--brass-light);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+            letter-spacing: 0.08em;
+        }
+        .history-table td { border-bottom: 1px solid var(--panel-edge); padding: 7px; text-align: center; }
+        .history-table tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+        .stamp {
+            display: inline-block;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.7rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--felt-light);
+            border: 1px solid var(--felt-light);
+            border-radius: 3px;
+            padding: 3px 10px;
+            margin-bottom: 0.75rem;
+            transform: rotate(-2deg);
+        }
+
+        .icon { width: 18px; height: 18px; flex-shrink: 0; }
     </style>
 </head>
 <body>
 
 <div id="game-container">
-    
+
     <!-- MAIN MENU -->
     <div id="screen-menu" class="screen active">
-        <h1>Bid War Online</h1>
-        <button onclick="createRoom()">Create Room (Host)</button>
-        <p>OR</p>
-        <input type="text" id="room-input" placeholder="Enter 4-Digit Code" style="width: 50%; font-size: 1.2rem;">
-        <button onclick="joinRoom()">Join Room</button>
+        <h1 class="brand">BID WAR</h1>
+        <p class="tagline">Sealed Bids · Winner Takes the Round</p>
+
+        <button onclick="createRoom()">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4l6 6-8.5 8.5a2.1 2.1 0 0 1-3 0 2.1 2.1 0 0 1 0-3L17 6"/><path d="M12.5 5.5l6 6"/><path d="M3 21l3-1 11-11-2-2L4 18l-1 3z"/></svg>
+            Create Room (Host)
+        </button>
+        <p class="or-divider">— OR —</p>
+        <input type="text" id="room-input" placeholder="4-DIGIT CODE" style="width: 55%; font-size: 1.1rem; letter-spacing: 0.2em;">
+        <button onclick="joinRoom()">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v10a2 2 0 0 0 2 2h4"/><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M15 12H3"/><path d="M8 8l-5 4 5 4"/></svg>
+            Join Room
+        </button>
         <div id="menu-error" class="warning" style="margin-top:10px;"></div>
     </div>
 
     <!-- LOBBY SCREEN -->
     <div id="screen-lobby" class="screen">
-        <h2>Waiting for opponent...</h2>
-        <p>Your Room Code is:</p>
-        <h1 id="lobby-code" class="highlight" style="font-size: 3rem; letter-spacing: 5px;"></h1>
+        <h2>Waiting for Opponent…</h2>
+        <p class="tagline" style="margin-bottom: 0;">Give them your room code</p>
+        <div class="dial-wrap">
+            <div class="dial-ring"></div>
+            <div class="dial-core">
+                <span class="label">Room Code</span>
+                <h1 id="lobby-code"></h1>
+            </div>
+        </div>
     </div>
 
     <!-- PLAY TURN SCREEN -->
     <div id="screen-play" class="screen">
         <div class="scoreboard">
-            <div>P1 Wins: <br><span id="score-p1" class="highlight">0</span></div>
-            <div>Round: <br><span id="score-round" class="highlight">1/10</span></div>
-            <div>P2 Wins: <br><span id="score-p2" class="highlight">0</span></div>
+            <div><span class="label">P1 Wins</span><span id="score-p1" class="highlight">0</span></div>
+            <div><span class="label">Round</span><span id="score-round" class="highlight">1/10</span></div>
+            <div><span class="label">P2 Wins</span><span id="score-p2" class="highlight">0</span></div>
         </div>
 
         <h2 id="player-identity" style="margin-bottom: 5px;"></h2>
-        <h3 id="turn-status" style="color: #aaa; margin-top: 0;"></h3>
-        
+        <h3 id="turn-status"></h3>
+
         <div class="stat-box">
             <p>Your Remaining Points: <span id="my-points" class="highlight">100</span></p>
             <p>Opponent's Point Group: <span id="opponent-group" class="warning">90-100</span></p>
@@ -64,7 +315,7 @@
         </div>
 
         <div id="play-area">
-            <p>Enter your bid for this round:</p>
+            <p style="font-family:'IBM Plex Mono', monospace; font-size:0.8rem; letter-spacing:0.06em; color: var(--muted); text-transform:uppercase;">Place your sealed bid</p>
             <input type="number" id="bid-input" min="0" max="100" placeholder="0" autocomplete="off">
             <div id="error-msg"></div>
             <button id="submit-btn" onclick="submitBid()">Submit Bid</button>
@@ -73,23 +324,24 @@
 
     <!-- ROUND RESULTS SCREEN -->
     <div id="screen-result" class="screen">
+        <span class="stamp">Bids Revealed</span>
         <h2>Round <span id="res-round"></span> Results</h2>
-        <div class="stat-box">
-            <p>Bids are hidden!</p>
-            <h3 id="res-winner" style="margin: 1.5rem 0;"></h3>
+        <div class="stat-box" style="text-align:center;">
+            <h3 id="res-winner" style="margin: 1rem 0; font-family:'Bebas Neue', sans-serif; letter-spacing:0.05em; font-size: 1.6rem;"></h3>
         </div>
         <button onclick="readyNextRound()" id="next-round-btn">Ready for Next Round</button>
     </div>
 
     <!-- GAME OVER SCREEN -->
     <div id="screen-gameover" class="screen">
-        <h1>Game Over!</h1>
-        <h2 id="final-winner" class="highlight"></h2>
-        <div class="stat-box" style="margin-bottom: 0.5rem;">
-            <p style="margin: 0;">P1 Wins: <span id="final-p1-wins" class="highlight"></span> | P2 Wins: <span id="final-p2-wins" class="highlight"></span></p>
+        <h1 class="brand" style="font-size: 2rem;">GAME OVER</h1>
+        <h2 id="final-winner" class="highlight" style="font-size: 1.6rem;"></h2>
+        <div class="ticket-divider"></div>
+        <div class="stat-box" style="margin-bottom: 0.75rem; text-align:center;">
+            <p style="margin: 0;">P1 Wins: <span id="final-p1-wins" class="highlight"></span> &nbsp;|&nbsp; P2 Wins: <span id="final-p2-wins" class="highlight"></span></p>
         </div>
-        <div class="stat-box" style="max-height: 220px; overflow-y: auto; text-align: left; padding-top: 0;">
-            <h3 style="text-align: center; margin-top: 10px;">Bid History</h3>
+        <div class="stat-box" style="max-height: 220px; overflow-y: auto; padding-top: 0.5rem;">
+            <h3 style="text-align: center; margin-top: 10px; font-family:'Bebas Neue', sans-serif; letter-spacing:0.05em; color: var(--brass-light);">Bid Ledger</h3>
             <div id="bid-history-container"></div>
         </div>
         <button onclick="location.reload()">Return to Menu</button>
@@ -229,16 +481,16 @@
             p1Wins++;
             roundWinner = "Player 1";
             winnerText.innerText = "Player 1 wins the round!";
-            winnerText.style.color = "var(--accent)";
+            winnerText.style.color = "var(--felt-light)";
         } else if (data.p2Bid > data.p1Bid) {
             p2Wins++;
             roundWinner = "Player 2";
             winnerText.innerText = "Player 2 wins the round!";
-            winnerText.style.color = "var(--accent)";
+            winnerText.style.color = "var(--felt-light)";
         } else {
             roundWinner = "Tie";
             winnerText.innerText = "It's a tie!";
-            winnerText.style.color = "var(--text-color)";
+            winnerText.style.color = "var(--text)";
         }
 
         bidHistory.push({ round: currentRound, p1: data.p1Bid, p2: data.p2Bid, winner: roundWinner });
@@ -286,7 +538,7 @@
         let historyHTML = `<table class="history-table"><tr><th>Rnd</th><th>P1 Bid</th><th>P2 Bid</th><th>Winner</th></tr>`;
         bidHistory.forEach(h => {
             historyHTML += `<tr><td>${h.round}</td><td>${h.p1}</td><td>${h.p2}</td>
-                <td style="color: ${h.winner === 'Tie' ? '#ccc' : 'var(--accent)'}">${h.winner}</td></tr>`;
+                <td style="color: ${h.winner === 'Tie' ? '#ccc' : 'var(--felt-light)'}">${h.winner}</td></tr>`;
         });
         historyHTML += `</table>`;
         document.getElementById('bid-history-container').innerHTML = historyHTML;
